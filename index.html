@@ -21,7 +21,8 @@
     dl { margin: 20px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 8px; }
     dt { color: #60736e; font-size: .75rem; text-transform: uppercase; }
     dd { margin: 3px 0 0; font-weight: 700; overflow-wrap: anywhere; }
-    footer { padding: 10px 20px; font-size: .8rem; color: #60736e; background: #f8fbf9; }
+    footer { padding: 10px 20px; font-size: .8rem; color: #60736e; background: #f8fbf9; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    footer strong { color: #123b35; }
     @media (max-width: 720px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } aside { border-right: 0; border-bottom: 1px solid #d5e2dd; } #map { min-height: 58vh; } }
   </style>
 </head>
@@ -40,7 +41,7 @@
     </aside>
     <div id="map"></div>
   </main>
-  <footer>Location data device par hi process hota hai. Tracking band karne ke liye button dabayein.</footer>
+  <footer><span>Location data device par hi process hota hai. Tracking band karne ke liye button dabayein.</span><strong>Developed by Shakeel | +92 300 3080088</strong></footer>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([20.5937, 78.9629], 5);
