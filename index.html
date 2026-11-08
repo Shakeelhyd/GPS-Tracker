@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root { font-family: system-ui, sans-serif; color: #17212b; background: #eef4f1; }
+    body.dark { color: #e8f0ed; background: #172522; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
     header { padding: 18px 22px; background: #123b35; color: white; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
@@ -14,20 +15,26 @@
     header p { margin: 4px 0 0; color: #b9d8cf; font-size: .9rem; }
     main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
     aside { padding: 20px; background: #f8fbf9; border-right: 1px solid #d5e2dd; }
+    body.dark aside, body.dark footer { background: #20332f; border-color: #38524b; }
     #map { min-height: 520px; }
     button { width: 100%; padding: 12px 14px; border: 0; border-radius: 7px; color: white; background: #e05a3f; font-weight: 700; cursor: pointer; }
     button.stop { background: #42636a; }
+    button.secondary { margin-top: 10px; background: #60736e; }
+    header button { width: auto; padding: 8px 12px; background: #2b5b51; }
     .status { margin: 14px 0; padding: 10px 12px; border-left: 4px solid #e05a3f; background: #edf2f0; font-size: .9rem; }
     dl { margin: 20px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 8px; }
     dt { color: #60736e; font-size: .75rem; text-transform: uppercase; }
     dd { margin: 3px 0 0; font-weight: 700; overflow-wrap: anywhere; }
     footer { padding: 10px 20px; font-size: .8rem; color: #60736e; background: #f8fbf9; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     footer strong { color: #123b35; }
+    body.dark footer strong { color: #b9d8cf; }
+    body.dark .status { background: #2b403b; }
+    body.dark dt { color: #b9d8cf; }
     @media (max-width: 720px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } aside { border-right: 0; border-bottom: 1px solid #d5e2dd; } #map { min-height: 58vh; } }
   </style>
 </head>
 <body>
-  <header><div><h1>GPS Tracker</h1><p>Live location aur movement trail</p></div><strong id="distance">0 m</strong></header>
+  <header><div><h1>GPS Tracker</h1><p>Live location aur movement trail</p></div><div><strong id="distance">0 m</strong><button id="theme">Dark mode</button></div></header>
   <main>
     <aside>
       <button id="toggle">Tracking shuru karein</button>
@@ -37,7 +44,10 @@
         <div><dt>Longitude</dt><dd id="lng">-</dd></div>
         <div><dt>Accuracy</dt><dd id="accuracy">-</dd></div>
         <div><dt>Updates</dt><dd id="updates">0</dd></div>
+        <div><dt>Speed</dt><dd id="speed">-</dd></div>
+        <div><dt>Duration</dt><dd id="duration">00:00</dd></div>
       </dl>
+      <button class="secondary" id="clear">Route clear karein</button>
     </aside>
     <div id="map"></div>
   </main>
@@ -49,9 +59,11 @@
     const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri' });
     L.control.layers({ Street: streetLayer, Satellite: satelliteLayer }).addTo(map);
     const button = document.querySelector('#toggle');
+    const themeButton = document.querySelector('#theme');
+    const clearButton = document.querySelector('#clear');
     const status = document.querySelector('#status');
     const path = L.polyline([], { color: '#e05a3f', weight: 5 }).addTo(map);
-    let marker = null, watchId = null, totalDistance = 0, lastPoint = null, updates = 0;
+    let marker = null, watchId = null, totalDistance = 0, lastPoint = null, updates = 0, startedAt = null, timer = null;
 
     function distanceBetween(a, b) {
       const radius = 6371000, radians = value => value * Math.PI / 180;
@@ -72,6 +84,7 @@
       document.querySelector('#lng').textContent = point.lng.toFixed(6);
       document.querySelector('#accuracy').textContent = `${Math.round(position.coords.accuracy)} m`;
       document.querySelector('#updates').textContent = updates;
+      document.querySelector('#speed').textContent = position.coords.speed == null ? '-' : `${(position.coords.speed * 3.6).toFixed(1)} km/h`;
       document.querySelector('#distance').textContent = totalDistance < 1000 ? `${Math.round(totalDistance)} m` : `${(totalDistance / 1000).toFixed(2)} km`;
       status.textContent = 'Tracking active hai.';
     }
@@ -79,15 +92,39 @@
     function startTracking() {
       if (!navigator.geolocation) { status.textContent = 'Is browser mein geolocation available nahi hai.'; return; }
       watchId = navigator.geolocation.watchPosition(updatePosition, error => { status.textContent = `Location error: ${error.message}`; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+      startedAt = Date.now();
+      timer = setInterval(updateDuration, 1000);
       button.textContent = 'Tracking band karein'; button.classList.add('stop');
     }
 
     function stopTracking() {
       navigator.geolocation.clearWatch(watchId); watchId = null;
+      clearInterval(timer); timer = null;
       button.textContent = 'Tracking shuru karein'; button.classList.remove('stop'); status.textContent = 'Tracking band hai.';
     }
 
+    function updateDuration() {
+      if (!startedAt) return;
+      const seconds = Math.floor((Date.now() - startedAt) / 1000);
+      document.querySelector('#duration').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
+    function clearRoute() {
+      path.setLatLngs([]); totalDistance = 0; lastPoint = null; updates = 0;
+      document.querySelector('#distance').textContent = '0 m';
+      document.querySelector('#updates').textContent = '0';
+      document.querySelector('#speed').textContent = '-';
+      status.textContent = 'Route clear kar di gayi.';
+    }
+
     button.addEventListener('click', () => watchId === null ? startTracking() : stopTracking());
+    clearButton.addEventListener('click', clearRoute);
+    themeButton.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      themeButton.textContent = document.body.classList.contains('dark') ? 'Light mode' : 'Dark mode';
+      localStorage.setItem('gps-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    });
+    if (localStorage.getItem('gps-theme') === 'dark') themeButton.click();
   </script>
 </body>
 </html>
