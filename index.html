@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPS Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #17212b; background: #eef4f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+    header { padding: 18px 22px; background: #123b35; color: white; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    h1 { margin: 0; font-size: 1.35rem; }
+    header p { margin: 4px 0 0; color: #b9d8cf; font-size: .9rem; }
+    main { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+    aside { padding: 20px; background: #f8fbf9; border-right: 1px solid #d5e2dd; }
+    #map { min-height: 520px; }
+    button { width: 100%; padding: 12px 14px; border: 0; border-radius: 7px; color: white; background: #e05a3f; font-weight: 700; cursor: pointer; }
+    button.stop { background: #42636a; }
+    .status { margin: 14px 0; padding: 10px 12px; border-left: 4px solid #e05a3f; background: #edf2f0; font-size: .9rem; }
+    dl { margin: 20px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 8px; }
+    dt { color: #60736e; font-size: .75rem; text-transform: uppercase; }
+    dd { margin: 3px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+    footer { padding: 10px 20px; font-size: .8rem; color: #60736e; background: #f8fbf9; }
+    @media (max-width: 720px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } aside { border-right: 0; border-bottom: 1px solid #d5e2dd; } #map { min-height: 58vh; } }
+  </style>
+</head>
+<body>
+  <header><div><h1>GPS Tracker</h1><p>Live location aur movement trail</p></div><strong id="distance">0 m</strong></header>
+  <main>
+    <aside>
+      <button id="toggle">Tracking shuru karein</button>
+      <div class="status" id="status">Location permission ke liye button dabayein.</div>
+      <dl>
+        <div><dt>Latitude</dt><dd id="lat">-</dd></div>
+        <div><dt>Longitude</dt><dd id="lng">-</dd></div>
+        <div><dt>Accuracy</dt><dd id="accuracy">-</dd></div>
+        <div><dt>Updates</dt><dd id="updates">0</dd></div>
+      </dl>
+    </aside>
+    <div id="map"></div>
+  </main>
+  <footer>Location data device par hi process hota hai. Tracking band karne ke liye button dabayein.</footer>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri' });
+    L.control.layers({ Street: streetLayer, Satellite: satelliteLayer }).addTo(map);
+    const button = document.querySelector('#toggle');
+    const status = document.querySelector('#status');
+    const path = L.polyline([], { color: '#e05a3f', weight: 5 }).addTo(map);
+    let marker = null, watchId = null, totalDistance = 0, lastPoint = null, updates = 0;
+
+    function distanceBetween(a, b) {
+      const radius = 6371000, radians = value => value * Math.PI / 180;
+      const dLat = radians(b.lat - a.lat), dLng = radians(b.lng - a.lng);
+      const x = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.lat)) * Math.cos(radians(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * radius * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+
+    function updatePosition(position) {
+      const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+      if (lastPoint) totalDistance += distanceBetween(lastPoint, point);
+      lastPoint = point; updates += 1;
+      const latLng = [point.lat, point.lng];
+      if (!marker) marker = L.marker(latLng).addTo(map).bindPopup('Aapki current location');
+      else marker.setLatLng(latLng);
+      path.addLatLng(latLng); map.setView(latLng, 16);
+      document.querySelector('#lat').textContent = point.lat.toFixed(6);
+      document.querySelector('#lng').textContent = point.lng.toFixed(6);
+      document.querySelector('#accuracy').textContent = `${Math.round(position.coords.accuracy)} m`;
+      document.querySelector('#updates').textContent = updates;
+      document.querySelector('#distance').textContent = totalDistance < 1000 ? `${Math.round(totalDistance)} m` : `${(totalDistance / 1000).toFixed(2)} km`;
+      status.textContent = 'Tracking active hai.';
+    }
+
+    function startTracking() {
+      if (!navigator.geolocation) { status.textContent = 'Is browser mein geolocation available nahi hai.'; return; }
+      watchId = navigator.geolocation.watchPosition(updatePosition, error => { status.textContent = `Location error: ${error.message}`; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+      button.textContent = 'Tracking band karein'; button.classList.add('stop');
+    }
+
+    function stopTracking() {
+      navigator.geolocation.clearWatch(watchId); watchId = null;
+      button.textContent = 'Tracking shuru karein'; button.classList.remove('stop'); status.textContent = 'Tracking band hai.';
+    }
+
+    button.addEventListener('click', () => watchId === null ? startTracking() : stopTracking());
+  </script>
+</body>
+</html>
